@@ -1,0 +1,10 @@
+PyQt6
+openai
+pyaudio
+python-dotenv
+pyperclip
+pynput
+faster-whisper
+soundcard
+numpy
+soundfile
