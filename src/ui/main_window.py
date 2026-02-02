@@ -3,7 +3,7 @@ import sys
 import os
 import subprocess
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton, 
-                               QLabel, QHBoxLayout, QMessageBox, QApplication, QCheckBox, QComboBox)
+                               QLabel, QHBoxLayout, QMessageBox, QApplication, QCheckBox, QComboBox, QSystemTrayIcon)
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QIcon, QAction, QPixmap
 
