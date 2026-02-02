@@ -7,7 +7,7 @@ class TextInjector:
     def __init__(self):
         self.keyboard = Controller()
 
-    def inject(self, text, modes):
+    def inject(self, text, modes, append_enter=False):
         # modes is a list, e.g. ['cursor', 'clipboard']
         if not text:
             return
@@ -15,19 +15,6 @@ class TextInjector:
         print(f"Injecting text via {modes}: {text}")
 
         # Always do clipboard if requested, or if it's the step for cursor
-        # If 'cursor' is present, we copy to clipboard then paste. 
-        # So if 'clipboard' is present AND 'cursor' is present, we just do the cursor logic (which copies)
-        # BUT if we want to leave it in clipboard, we should ensure we don't clear it.
-        # Logic:
-        # 1. Update clipboard content (Required for both usually, unless typing manually)
-        # 2. If cursor mode, trigger paste.
-        
-        # In this simple implementation:
-        # 'clipboard' -> calls pyperclip.copy()
-        # 'cursor' -> calls pyperclip.copy() AND Ctrl+V.
-        
-        # So we just need to ensure we copy.
-        
         pyperclip.copy(text)
         
         if 'cursor' in modes:
@@ -42,4 +29,7 @@ class TextInjector:
                 self.keyboard.press('v')
                 self.keyboard.release('v')
         
-        # If 'clipboard' in modes, we are done because we already copied.
+            if append_enter:
+                 time.sleep(0.1)
+                 self.keyboard.press(Key.enter)
+                 self.keyboard.release(Key.enter)

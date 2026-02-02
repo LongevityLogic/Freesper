@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QLineEdit, 
-                               QComboBox, QPushButton, QMessageBox, QHBoxLayout, QCheckBox, QStackedWidget, QWidget)
+                               QComboBox, QPushButton, QMessageBox, QHBoxLayout, QCheckBox, QStackedWidget, QWidget, QSlider)
 from PyQt6.QtCore import Qt
 from src.utils.config import Config
 from src.ui.styles import Styles
@@ -98,6 +98,23 @@ class SettingsWindow(QDialog):
             self.autostart_check.setChecked(True)
         self.layout.addWidget(self.autostart_check)
 
+        # Transparency Section
+        self.layout.addWidget(QLabel("Window Transparency:"))
+        self.transparency_layout = QHBoxLayout()
+        self.transparency_slider = QSlider(Qt.Orientation.Horizontal)
+        self.transparency_slider.setRange(10, 100) # 10% to 100%
+        current_transparency = int(Config.get_transparency() * 100)
+        self.transparency_slider.setValue(current_transparency)
+        
+        self.transparency_label = QLabel(f"{current_transparency}%")
+        self.transparency_label.setFixedWidth(40)
+        
+        self.transparency_slider.valueChanged.connect(lambda v: self.transparency_label.setText(f"{v}%"))
+        
+        self.transparency_layout.addWidget(self.transparency_slider)
+        self.transparency_layout.addWidget(self.transparency_label)
+        self.layout.addLayout(self.transparency_layout)
+
         # Spacer
         self.layout.addStretch()
         
@@ -147,5 +164,8 @@ class SettingsWindow(QDialog):
 
         # Autostart
         AutostartManager.set_autostart(self.autostart_check.isChecked())
+        
+        # Transparency
+        Config.set_transparency(self.transparency_slider.value())
         
         self.accept()

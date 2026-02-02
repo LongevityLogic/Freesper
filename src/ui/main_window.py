@@ -3,7 +3,7 @@ import sys
 import os
 import subprocess
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QPushButton, 
-                               QLabel, QHBoxLayout, QMessageBox, QApplication, QCheckBox)
+                               QLabel, QHBoxLayout, QMessageBox, QApplication, QCheckBox, QComboBox)
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QIcon, QAction, QPixmap
 
@@ -15,10 +15,11 @@ from src.services.text_injector import TextInjector
 from src.services.hotkey_manager import HotkeyManager
 from src.utils.config import Config
 
-# V3 Imports
+# V3/V5 Imports
 from src.services.conference_recorder import ConferenceRecorder
 from src.services.conference_transcriber import ConferenceTranscriber
 from src.services.report_generator import ReportGenerator
+from src.services.system_recorder import SystemRecorder
 
 class AudioProcessingThread(QThread):
     finished = pyqtSignal(str)
@@ -39,7 +40,34 @@ class AudioProcessingThread(QThread):
             print(f"Transcribed: {text}")
             
             modes = Config.get_output_modes()
-            self.injector.inject(text, modes)
+            # Standard mode: don't auto-enter
+            self.injector.inject(text, modes, append_enter=False)
+            
+            self.finished.emit(text)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class InterviewProcessingThread(QThread):
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, audio_file):
+        super().__init__()
+        self.audio_file = audio_file
+        self.transcriber = Transcriber()
+        self.injector = TextInjector()
+
+    def run(self):
+        try:
+            language = Config.get_language()
+            print(f"Interview Mode: Transcribing system audio...")
+            
+            text = self.transcriber.transcribe(self.audio_file, language=language)
+            print(f"Transcribed System: {text}")
+            
+            modes = ["cursor"] # Interview mode forces typing
+            # Auto-Enter is TRUE
+            self.injector.inject(text, modes, append_enter=True)
             
             self.finished.emit(text)
         except Exception as e:
@@ -73,7 +101,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("WhisperTyping")
-        self.setFixedSize(300, 220)
+        self.setFixedSize(300, 260) # Increased height for Mode dropdown
         
         icon_path = os.path.join("assets", "icon.png")
         if os.path.exists(icon_path):
@@ -85,9 +113,11 @@ class MainWindow(QMainWindow):
         # Recorders
         self.recorder = AudioRecorder()
         self.conf_recorder = ConferenceRecorder()
+        self.sys_recorder = SystemRecorder()
         self.is_recording = False
         
         self.init_ui()
+        self.apply_transparency()
         
         self.hotkey_manager = None
         self.setup_hotkey()
@@ -114,10 +144,16 @@ class MainWindow(QMainWindow):
         self.record_btn.clicked.connect(self.toggle_recording)
         layout.addWidget(self.record_btn)
         
-        # Conference Toggle
-        self.conf_mode_check = QCheckBox("Conference Mode")
-        self.conf_mode_check.setStyleSheet("color: #a0a0a0; font-size: 12px;")
-        layout.addWidget(self.conf_mode_check, alignment=Qt.AlignmentFlag.AlignCenter)
+        # Mode Selection
+        mode_layout = QHBoxLayout()
+        mode_layout.addWidget(QLabel("Mode:"))
+        
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Dictation (Mic)", "Interview (Sys)", "Conference (Dual)"])
+        self.mode_combo.setCurrentIndex(0)
+        mode_layout.addWidget(self.mode_combo)
+        
+        layout.addLayout(mode_layout)
         
         # Settings Button
         settings_layout = QHBoxLayout()
@@ -165,11 +201,16 @@ class MainWindow(QMainWindow):
         self.is_recording = True
         self.record_btn.setStyleSheet(Styles.RECORD_BUTTON_ACTIVE)
         self.status_label.setText("Recording...")
+        self.mode_combo.setEnabled(False) # Lock mode while recording
         
-        if self.conf_mode_check.isChecked():
-            self.conf_recorder.start_recording()
-        else:
+        mode = self.mode_combo.currentText()
+        
+        if "Dictation" in mode:
             self.recorder.start_recording()
+        elif "Interview" in mode:
+            self.sys_recorder.start_recording()
+        elif "Conference" in mode:
+            self.conf_recorder.start_recording()
 
     def stop_recording(self):
         if not self.is_recording:
@@ -178,15 +219,25 @@ class MainWindow(QMainWindow):
         self.record_btn.setStyleSheet(Styles.RECORD_BUTTON_IDLE)
         self.status_label.setText("Processing...")
         self.record_btn.setEnabled(False) 
+        self.mode_combo.setEnabled(True)
         
-        if self.conf_mode_check.isChecked():
-            mic_path, sys_path = self.conf_recorder.stop_recording()
-            self.worker = ConferenceProcessingThread(mic_path, sys_path)
-            self.worker.finished.connect(self.on_conf_finished)
-        else:
+        mode = self.mode_combo.currentText()
+        
+        if "Dictation" in mode:
             audio_file = self.recorder.stop_recording()
             self.worker = AudioProcessingThread(audio_file)
             self.worker.finished.connect(self.on_process_finished)
+            
+        elif "Interview" in mode:
+            # System Only -> Text -> Enter
+            audio_file = self.sys_recorder.stop_recording()
+            self.worker = InterviewProcessingThread(audio_file)
+            self.worker.finished.connect(self.on_process_finished)
+            
+        elif "Conference" in mode:
+            mic_path, sys_path = self.conf_recorder.stop_recording()
+            self.worker = ConferenceProcessingThread(mic_path, sys_path)
+            self.worker.finished.connect(self.on_conf_finished)
             
         self.worker.error.connect(self.on_process_error)
         self.worker.start()
@@ -207,7 +258,6 @@ class MainWindow(QMainWindow):
         msg.exec()
         
         if msg.clickedButton() == open_btn:
-            # Open file with default app
             if sys.platform == 'win32':
                 os.startfile(report_path)
             else:
@@ -216,12 +266,18 @@ class MainWindow(QMainWindow):
     def on_process_error(self, err_msg):
         self.status_label.setText("Error")
         self.record_btn.setEnabled(True)
+        self.mode_combo.setEnabled(True)
         QMessageBox.critical(self, "Error", f"Processing failed: {err_msg}")
 
     def open_settings(self):
         dlg = SettingsWindow(self)
         if dlg.exec():
             self.setup_hotkey()
+            self.apply_transparency()
+
+    def apply_transparency(self):
+        opacity = Config.get_transparency()
+        self.setWindowOpacity(opacity)
 
     def closeEvent(self, event):
         if self.hotkey_manager:

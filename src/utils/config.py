@@ -66,3 +66,19 @@ class Config:
     def set_local_model_size(size):
         os.environ["LOCAL_MODEL_SIZE"] = size
         set_key(ENV_PATH, "LOCAL_MODEL_SIZE", size)
+
+    @staticmethod
+    def get_transparency():
+        # Returns float 0.1 to 1.0, default 1.0 (Opaque)
+        val = os.getenv("WINDOW_TRANSPARENCY", "100")
+        try:
+            return float(val) / 100.0
+        except:
+            return 1.0
+
+    @staticmethod
+    def set_transparency(percent_int):
+        # Stores as integer 10-100
+        val = str(max(10, min(100, int(percent_int))))
+        os.environ["WINDOW_TRANSPARENCY"] = val
+        set_key(ENV_PATH, "WINDOW_TRANSPARENCY", val)
