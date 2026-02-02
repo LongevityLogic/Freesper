@@ -48,6 +48,15 @@ class Config:
         set_key(ENV_PATH, "GLOBAL_HOTKEY", hotkey)
 
     @staticmethod
+    def get_stealth_hotkey():
+        return os.getenv("STEALTH_HOTKEY", "<ctrl>+<alt>+h")
+
+    @staticmethod
+    def set_stealth_hotkey(hotkey):
+        os.environ["STEALTH_HOTKEY"] = hotkey
+        set_key(ENV_PATH, "STEALTH_HOTKEY", hotkey)
+
+    @staticmethod
     def get_transcriber_backend():
         # 'openai_api' or 'local'
         return os.getenv("TRANSCRIBER_BACKEND", "openai_api")

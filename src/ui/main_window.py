@@ -170,11 +170,72 @@ class MainWindow(QMainWindow):
             QPushButton:hover { color: #aaaaaa; }
         """)
         self.settings_btn.clicked.connect(self.open_settings)
+        # Stealth Button
+        self.stealth_btn = QPushButton("👻")
+        self.stealth_btn.setFixedSize(30, 30)
+        self.stealth_btn.setToolTip("Stealth Mode (Minimize to Tray)")
+        self.stealth_btn.setStyleSheet("""
+            QPushButton { 
+                background-color: transparent; 
+                color: #555555; 
+                font-size: 16px; 
+                border: none; 
+            } 
+            QPushButton:hover { color: #aaaaaa; }
+        """)
+        self.stealth_btn.clicked.connect(self.toggle_stealth)
+        settings_layout.addWidget(self.stealth_btn)
+        
         settings_layout.addWidget(self.settings_btn)
         
         layout.addLayout(settings_layout)
+        
+        # System Tray
+        self.init_tray()
+        
+        # Stealth Hotkey
+        self.stealth_hotkey_manager = None
+        
+    def init_tray(self):
+        from PyQt6.QtWidgets import QSystemTrayIcon, QMenu
+        self.tray_icon = QSystemTrayIcon(self)
+        icon_path = os.path.join("assets", "icon.png")
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
+        else:
+            # Fallback icon if missing
+            self.tray_icon.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_ComputerIcon))
+            
+        tray_menu = QMenu()
+        show_action = QAction("Show", self)
+        show_action.triggered.connect(self.show_window)
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(QApplication.instance().quit)
+        
+        tray_menu.addAction(show_action)
+        tray_menu.addAction(quit_action)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.on_tray_activated)
+        self.tray_icon.show()
+        
+    def on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self.toggle_stealth()
+
+    def toggle_stealth(self):
+        if self.isVisible():
+            self.hide()
+        else:
+            self.show_window()
+
+    def show_window(self):
+        self.show()
+        self.raise_()
+        self.activateWindow()
 
     def setup_hotkey(self):
+        # Record Hotkey
         if self.hotkey_manager:
             self.hotkey_manager.stop()
         
@@ -182,6 +243,15 @@ class MainWindow(QMainWindow):
         if hotkey_str:
             self.hotkey_manager = HotkeyManager(hotkey_str, self.on_hotkey_triggered)
             self.hotkey_manager.start()
+            
+        # Stealth Hotkey
+        if self.stealth_hotkey_manager:
+            self.stealth_hotkey_manager.stop()
+            
+        stealth_key = Config.get_stealth_hotkey()
+        if stealth_key:
+            self.stealth_hotkey_manager = HotkeyManager(stealth_key, self.toggle_stealth)
+            self.stealth_hotkey_manager.start()
 
     def on_hotkey_triggered(self):
         if self.is_recording:
@@ -282,4 +352,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if self.hotkey_manager:
             self.hotkey_manager.stop()
+        if self.stealth_hotkey_manager:
+            self.stealth_hotkey_manager.stop()
         super().closeEvent(event)

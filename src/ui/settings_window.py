@@ -92,6 +92,12 @@ class SettingsWindow(QDialog):
         self.hotkey_input.setPlaceholderText("<ctrl>+<alt>+s")
         self.layout.addWidget(self.hotkey_input)
         
+        self.layout.addWidget(QLabel("Stealth Hotkey:"))
+        self.stealth_hotkey_input = QLineEdit()
+        self.stealth_hotkey_input.setText(Config.get_stealth_hotkey())
+        self.stealth_hotkey_input.setPlaceholderText("<ctrl>+<alt>+h")
+        self.layout.addWidget(self.stealth_hotkey_input)
+        
         # Autostart Section
         self.autostart_check = QCheckBox("Start with Windows")
         if AutostartManager.is_autostart_enabled():
@@ -154,6 +160,7 @@ class SettingsWindow(QDialog):
         # Common
         Config.set_language(self.lang_combo.currentText())
         Config.set_hotkey(self.hotkey_input.text().strip())
+        Config.set_stealth_hotkey(self.stealth_hotkey_input.text().strip())
         
         output_modes = []
         if self.cursor_check.isChecked():
